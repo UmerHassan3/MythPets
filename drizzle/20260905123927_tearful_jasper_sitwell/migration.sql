@@ -1,0 +1,1 @@
+ALTER TABLE "reviews" ADD COLUMN "game_name" text NOT NULL;
