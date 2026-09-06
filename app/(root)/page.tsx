@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight } from "lucide-react";
@@ -35,37 +34,61 @@ const page = async () => {
 
   return (
     <>
-      {/* Hero. The banner carries its own headline, so the overlay adds only a
-          call to action — competing text would fight the artwork. */}
-      <section className="relative min-h-44 w-full overflow-hidden bg-neutral-950 aspect-[3/1]">
-        <Image
-          src="/Images/banner.png"
-          alt="MythPets — trade legendary pets instantly"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
-        />
+      {/* Hero. The artwork carries the headline and trust chips but no buttons,
+          so the CTAs below are the only ones on the page — real controls rather
+          than pixels. The banner itself also links through. */}
+      {/* The dark background only backs the image itself — it shows while the
+          artwork loads and prevents a white flash, and ends exactly where the
+          image does. */}
+      <Link
+        href="/adopt-me"
+        aria-label="Browse Adopt Me pets"
+        className="relative block aspect-[9/10] w-full overflow-hidden bg-neutral-950 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-500 md:aspect-[3/1]"
+      >
+          {/* Two different crops, not one image scaled — portrait on phones,
+              wide banner from tablet up. `<picture>` with a media condition so
+              the browser fetches exactly one; two <Image> elements toggled by
+              CSS would download both. */}
+          <picture>
+            <source
+              media="(min-width: 768px)"
+              srcSet="/Images/hero-desktop.webp"
+              width={3840}
+              height={1280}
+            />
+            <img
+              src="/Images/hero-mobile.webp"
+              alt="Your next pet is one trade away — hundreds of in-game pets and items, priced up front."
+              width={2160}
+              height={2400}
+              fetchPriority="high"
+              className="absolute inset-0 size-full object-cover"
+            />
+          </picture>
+      </Link>
 
-        <div
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-neutral-950/80 to-transparent"
-        />
+      {/* On the page background, not the hero's. Keeping these inside the dark
+          section left a black slab below the artwork once the image ended. */}
+      <div className="mx-auto flex max-w-6xl flex-wrap gap-3 px-4 py-6 md:px-6">
+        <Button
+          size="lg"
+          nativeButton={false}
+          render={<Link href="/adopt-me" />}
+          className="gap-2 bg-red-600 text-white hover:bg-red-500"
+        >
+          Browse pets
+          <ArrowRight className="size-4" />
+        </Button>
 
-        <div className="absolute inset-x-0 bottom-0">
-          <div className="mx-auto flex max-w-6xl justify-center px-4 pb-5 md:justify-start md:px-6 md:pb-8">
-            <Button
-              size="lg"
-              nativeButton={false}
-              render={<Link href="/adopt-me" />}
-              className="gap-2 bg-red-600 text-white shadow-lg shadow-red-950/30 hover:bg-red-500"
-            >
-              Shop Adopt Me pets
-              <ArrowRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </section>
+        <Button
+          size="lg"
+          variant="outline"
+          nativeButton={false}
+          render={<Link href="#how-it-works" />}
+        >
+          How trading works
+        </Button>
+      </div>
 
       <TrustBar />
 

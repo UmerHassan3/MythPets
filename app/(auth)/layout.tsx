@@ -11,21 +11,32 @@ import Link from 'next/link'
 const layout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
-      {/* Brand panel. On mobile it becomes a capped banner above the form so
-          the portrait artwork cannot push the inputs below the fold. */}
-      {/* The outer element is the sticky one; `fill` needs a parent with
-          position relative/absolute/fixed, and `sticky` is none of those —
-          hence the inner wrapper. */}
-      <div className="h-44 w-full bg-neutral-950 sm:h-56 lg:sticky lg:top-0 lg:h-dvh">
+      {/* Brand panel: a landscape banner above the form on mobile, a
+          full-height portrait column beside it on desktop.
+
+          The two artworks are different crops, not one image scaled — so this
+          is `<picture>` with a media condition rather than two <Image>
+          elements toggled by CSS. A hidden <Image> is still fetched by most
+          browsers, which would cost both files on every visit; this fetches
+          exactly one. */}
+      <div className="aspect-[9/5] w-full bg-neutral-950 sm:aspect-[12/5] lg:sticky lg:top-0 lg:aspect-auto lg:h-dvh">
         <div className="relative size-full overflow-hidden">
-          <Image
-            src="/Images/auth.jpeg"
-            alt="MythPets — Adopt Me trading"
-            fill
-            priority
-            sizes="(min-width: 1024px) 50vw, 100vw"
-            className="object-cover object-top lg:object-center"
-          />
+          <picture>
+            <source
+              media="(min-width: 1024px)"
+              srcSet="/Images/auth-desktop.webp"
+              width={1920}
+              height={2400}
+            />
+            <img
+              src="/Images/auth-mobile.webp"
+              alt="MythPets — Adopt Me trading"
+              width={2160}
+              height={1200}
+              fetchPriority="high"
+              className="absolute inset-0 size-full object-cover"
+            />
+          </picture>
         </div>
       </div>
 
