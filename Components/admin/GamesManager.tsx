@@ -81,7 +81,10 @@ const GamesManager = ({ games }: { games: GameRow[] }) => {
   const busy = isPending || isSubmitting;
 
   const addGameButton = (
-    console.log("add-game")
+    <DialogTrigger render={<Button />}>
+      <Plus className="size-4" />
+      Add game
+    </DialogTrigger>
   );
 
   return (
