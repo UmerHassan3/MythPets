@@ -1,13 +1,16 @@
-"use client";
-
 import Link from "next/link";
-import React from "react";
 
 type ButtonProps = {
   id: string;
   text: string;
   to: string;
 };
+
+/**
+ * Server Component — this is a styled link with no interactivity, so marking it
+ * `"use client"` would ship JavaScript for every category section on the page
+ * and buy nothing.
+ */
 
 const Btn = ({ id, text, to }: ButtonProps) => {
   return (

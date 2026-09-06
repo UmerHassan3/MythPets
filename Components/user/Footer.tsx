@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ShieldCheck, Truck, Zap } from "lucide-react";
+
+import { TRUST_POINTS } from "@/lib/trust";
 
 /**
  * Link groups live in data rather than markup, so a new column or entry is a
@@ -30,11 +31,7 @@ const LINK_GROUPS = [
   },
 ] as const;
 
-const TRUST_POINTS = [
-  { icon: Truck, text: "In-game delivery" },
-  { icon: ShieldCheck, text: "Password never required" },
-  { icon: Zap, text: "Instant checkout" },
-] as const;
+
 
 /**
  * Server Component — the footer is static chrome, so it ships no JavaScript.
@@ -72,13 +69,13 @@ const Footer = () => {
             </p>
 
             <ul className="space-y-2 pt-1">
-              {TRUST_POINTS.map(({ icon: Icon, text }) => (
+              {TRUST_POINTS.map(({ icon: Icon, short }) => (
                 <li
-                  key={text}
+                  key={short}
                   className="flex items-center gap-2.5 text-xs text-white/50"
                 >
                   <Icon className="size-3.5 shrink-0 text-red-500" />
-                  {text}
+                  {short}
                 </li>
               ))}
             </ul>

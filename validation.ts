@@ -116,3 +116,22 @@ export const ContactSchema = z.object({
     .min(10, "Please give us a little more detail")
     .max(2000, "Message is too long"),
 });
+
+/**
+ * Roblox usernames: 3–20 characters, letters/digits/underscore, at most one
+ * underscore, and never leading or trailing. Matches Roblox's own rules so a
+ * typo is caught before the order is placed rather than at delivery time.
+ */
+export const ROBLOX_USERNAME_PATTERN = /^(?!_)(?!.*_.*_)[A-Za-z0-9_]{3,20}(?<!_)$/;
+
+export const CheckoutSchema = z.object({
+  robloxUsername: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters")
+    .max(20, "Username must be 20 characters or fewer")
+    .regex(
+      ROBLOX_USERNAME_PATTERN,
+      "Enter a valid Roblox username (letters, digits, one underscore)",
+    ),
+});

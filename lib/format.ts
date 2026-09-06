@@ -21,6 +21,8 @@ export const priceInfo = (price: string, salesPrice: string) => {
   return {
     onSale,
     discount: onSale ? Math.round(((full - sale) / full) * 100) : 0,
+    /** Cash saved, pre-formatted — "Save $4.00" lands harder than "-20%". */
+    saved: onSale ? currency.format(full - sale) : null,
     /** The price the customer actually pays. */
     effective: onSale ? salesPrice : price,
   };

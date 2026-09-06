@@ -9,6 +9,7 @@ import { categories, games, products } from "@/Database/schema";
 import { formatPrice, priceInfo } from "@/lib/format";
 import { Button } from "@/Components/ui/button";
 import ProductCard from "@/Components/user/ProductCard";
+import AddToCartButton from "@/Components/user/AddToCartButton";
 
 /** Postgres throws on a malformed uuid, so reject it before querying. */
 const UUID_PATTERN =
@@ -159,9 +160,13 @@ const page = async ({ params }: PageProps<"/products/[productid]">) => {
           
 
           <div className="mt-10 sm:mt-8">
-            <Button size="lg" className="w-full px-30 sm:w-auto" disabled={soldOut}>
-              {soldOut ? "Sold out" : "Add to cart"}
-            </Button>
+            <AddToCartButton
+              productId={product.id}
+              name={product.name}
+              stock={product.stock}
+              size="lg"
+              className="w-full sm:w-auto sm:px-10"
+            />
           </div>
 
           <ul className="mt-10 space-y-4 border-t pt-8 sm:mt-12 sm:space-y-3">

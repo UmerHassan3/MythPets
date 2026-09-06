@@ -2,9 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { ImageOff } from "lucide-react";
 
-import { Button } from "@/Components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatPrice, priceInfo } from "@/lib/format";
+import AddToCartButton from "./AddToCartButton";
 
 export type Product = {
   id: string;
@@ -16,31 +16,37 @@ export type Product = {
   stock: number;
 };
 
+/** Below this, stock is called out as urgency rather than reassurance. */
+const LOW_STOCK_THRESHOLD = 3;
+
 /**
  * Server Component — a product tile is read-only markup, so it ships no
- * JavaScript. Navigation uses `Link` rather than a router push in a click
- * handler: that keeps the tile server-rendered, and gives real anchor
- * behaviour (middle-click, open in new tab, crawlable href).
+ * JavaScript. Only the cart action becomes a client island once a cart exists.
  *
- * Only the cart action needs to become a client island once a cart exists.
+ * The whole tile is clickable via a stretched link on the title: one anchor in
+ * the accessibility tree (announced once, with a real href) but a card-sized
+ * target. The cart button is lifted above that overlay so it stays separately
+ * clickable.
  */
 const ProductCard = ({ product }: { product: Product }) => {
-  const { onSale, discount, effective } = priceInfo(
+  const { onSale, discount, saved, effective } = priceInfo(
     product.price,
     product.salesPrice,
   );
 
   const soldOut = product.stock <= 0;
-  const lowStock = !soldOut && product.stock <= 3;
+  const lowStock = !soldOut && product.stock <= LOW_STOCK_THRESHOLD;
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5">
-      <Link
-        href={`/products/${product.id}`}
-        tabIndex={-1}
-        aria-hidden
-        className="relative aspect-square overflow-hidden bg-muted"
-      >
+    <article
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm",
+        "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5",
+        // Keyboard parity: focusing the title ring-highlights the whole tile.
+        "has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/50",
+      )}
+    >
+      <div className="relative aspect-square overflow-hidden bg-muted">
         {product.image ? (
           <Image
             src={product.image}
@@ -48,8 +54,8 @@ const ProductCard = ({ product }: { product: Product }) => {
             fill
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
             className={cn(
-              "object-cover transition-transform duration-300 group-hover:scale-105",
-              soldOut && "opacity-50 grayscale",
+              "object-cover transition-transform duration-500 group-hover:scale-105",
+              soldOut && "grayscale",
             )}
           />
         ) : (
@@ -58,49 +64,85 @@ const ProductCard = ({ product }: { product: Product }) => {
           </div>
         )}
 
-        {onSale && !soldOut ? (
-          <span className="absolute top-2 left-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
-            -{discount}%
-          </span>
-        ) : null}
-
+        {/* A wash plus a centred label reads as unavailable far faster than a
+            small corner badge. */}
         {soldOut ? (
-          <span className="absolute top-2 left-2 rounded-full bg-neutral-900/85 px-2 py-0.5 text-xs font-semibold text-white">
-            Sold out
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+            <span className="rounded-full bg-neutral-900/90 px-3 py-1 text-xs font-semibold tracking-wide text-white uppercase">
+              Sold out
+            </span>
+          </div>
+        ) : onSale ? (
+          <span className="absolute top-2 left-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
+            −{discount}%
           </span>
         ) : null}
-      </Link>
+      </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        {/* The title carries the link for assistive tech; the image above is
-            marked aria-hidden so the tile is announced once, not twice. */}
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug">
+      <div className="flex flex-1 flex-col p-4">
+        {/* min-h keeps one- and two-line titles from misaligning prices across
+            a row of tiles. */}
+        <h3 className="line-clamp-2 min-h-10 text-sm font-medium leading-snug">
           <Link
             href={`/products/${product.id}`}
-            className="rounded outline-none hover:underline focus-visible:underline"
+            className="rounded outline-none after:absolute after:inset-0 group-hover:underline"
           >
             {product.name}
           </Link>
         </h3>
 
-        <div className="mt-auto space-y-2">
-          <div className="flex items-baseline gap-2">
-            <span className="font-heading text-lg font-semibold tabular-nums">
-              {formatPrice(effective)}
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="font-heading text-lg font-semibold tabular-nums">
+            {formatPrice(effective)}
+          </span>
+          {onSale ? (
+            <span className="text-sm text-muted-foreground line-through tabular-nums">
+              {formatPrice(product.price)}
             </span>
-            {onSale ? (
-              <span className="text-sm text-muted-foreground line-through tabular-nums">
-                {formatPrice(product.price)}
-              </span>
-            ) : null}
-          </div>
-
-          
-
-          <Button className="w-full" disabled={soldOut}>
-            {soldOut ? "Sold out" : "Add to cart"}
-          </Button>
+          ) : null}
         </div>
+
+        {/* Reserved line: without it, tiles with and without a saving would sit
+            at different heights. */}
+        <p className="mt-1 min-h-4 text-xs font-medium text-red-600">
+          {saved ? `Save ${saved}` : null}
+        </p>
+
+        <div className="mt-3 flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              soldOut
+                ? "bg-muted-foreground/40"
+                : lowStock
+                  ? "bg-amber-500"
+                  : "bg-emerald-500",
+            )}
+          />
+          <p
+            className={cn(
+              "text-xs",
+              lowStock ? "font-medium text-amber-600" : "text-muted-foreground",
+            )}
+          >
+            {soldOut
+              ? "Out of stock"
+              : lowStock
+                ? `Only ${product.stock} left`
+                : "In stock"}
+          </p>
+        </div>
+
+        {/* z-10 lifts the button above the stretched title link so it remains
+            independently clickable. The button is the only client code here —
+            the tile itself stays server-rendered. */}
+        <AddToCartButton
+          productId={product.id}
+          name={product.name}
+          stock={product.stock}
+          className="relative z-10 mt-4 w-full"
+        />
       </div>
     </article>
   );

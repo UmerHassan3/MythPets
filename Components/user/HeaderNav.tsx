@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/Components/ui/button";
 import { SignOut } from "@/lib/actions/auth";
 import AvatarDropdown, { ACCOUNT_LINKS } from "./AvatarDropdown";
+import CartBadge from "./CartBadge";
 
 export type NavItem = { href: string; label: string };
 
@@ -174,7 +175,12 @@ const HeaderNav = ({ items, user }: HeaderNavProps) => {
         {navLinks("bar")}
       </nav>
 
-      <div className="hidden shrink-0 md:flex">{account("bar")}</div>
+      {/* Cart sits outside the account block: it is available signed in or
+          out, and stays visible on mobile where the rest collapses. */}
+      <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">
+        <CartBadge />
+        <div className="hidden md:flex">{account("bar")}</div>
+      </div>
 
       <Button
         type="button"

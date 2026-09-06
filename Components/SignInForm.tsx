@@ -11,9 +11,17 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { SignIn } from "@/lib/actions/auth";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
+/** Only same-origin paths are honoured — an absolute URL here is an open redirect. */
+const safeCallback = (value: string | null) =>
+  value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
 
 const SignInForm = () => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
+
   const {
     register,
     handleSubmit,
@@ -33,7 +41,9 @@ const SignInForm = () => {
     });
     if (result.success) {
       toast.success(result.message);
-      redirect("/")
+      // Back to whatever they were trying to reach, else home.
+      router.push(callbackUrl);
+      router.refresh();
     } else {
       toast.error(result.message);
     }
