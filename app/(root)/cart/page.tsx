@@ -13,12 +13,20 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+
 import { useCart } from "@/lib/cart/cart-context";
 import {
   getCartProducts,
   type CartProduct,
 } from "@/lib/actions/user-actions/cart";
+import {
+  createOrder,
+  getPaymentMethods,
+  type PaymentMethodOption,
+} from "@/lib/actions/user-actions/order";
 import { formatPrice, priceInfo } from "@/lib/format";
+import PaymentMethodPicker from "@/Components/user/PaymentMethodPicker";
 import { Button } from "@/Components/ui/button";
 import { TRUST_POINTS } from "@/lib/trust";
 import { CheckoutSchema } from "@/validation";
@@ -31,7 +39,11 @@ const CartPage = () => {
   // Errors only appear once the field has been interacted with, so an empty
   // cart page does not open covered in red.
   const [robloxTouched, setRobloxTouched] = useState(false);
+  const [methods, setMethods] = useState<PaymentMethodOption[]>([]);
+  const [methodId, setMethodId] = useState("");
+  const [placing, setPlacing] = useState(false);
   const [, startTransition] = useTransition();
+  const router = useRouter();
 
   // Ids are the only thing persisted, so the live rows are fetched here. The
   // key is the id list rather than `items` so changing a quantity does not
@@ -65,6 +77,23 @@ const CartPage = () => {
     };
   }, [idKey, hydrated]);
 
+  // Loaded once on mount rather than per render: the list is small, static,
+  // and needed before the customer can check out.
+  useEffect(() => {
+    let cancelled = false;
+
+    getPaymentMethods().then((rows) => {
+      if (cancelled) return;
+      setMethods(rows);
+      // Preselect so the common case is one click, not two.
+      setMethodId((current) => current || rows[0]?.id || "");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Join the persisted quantities onto the live rows. Anything that no longer
   // resolves has been deactivated or deleted and is reported below.
   const lines = useMemo(() => {
@@ -97,7 +126,7 @@ const CartPage = () => {
       ? CheckoutSchema.safeParse({ robloxUsername }).error?.issues[0]?.message
       : null;
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     const parsed = CheckoutSchema.safeParse({ robloxUsername });
 
     if (!parsed.success) {
@@ -108,9 +137,31 @@ const CartPage = () => {
       return;
     }
 
-    toast.info("Payment method coming soon", {
-      description: `We'll deliver to ${parsed.data.robloxUsername} once checkout is live.`,
+    if (!methodId) {
+      toast.error("Choose a payment method");
+      return;
+    }
+
+    setPlacing(true);
+
+    // Only ids and quantities are sent — the server re-reads every price, so
+    // nothing here can influence what the order costs.
+    const result = await createOrder({
+      items: lines.map((line) => ({ id: line.id, quantity: line.quantity })),
+      robloxUsername: parsed.data.robloxUsername,
+      paymentMethodId: methodId,
     });
+
+    if (result.success && result.orderId) {
+      // The cart is deliberately left intact until the payment is submitted:
+      // the order snapshots its own items, but an abandoned checkout should
+      // not leave the customer with nothing.
+      router.push(`/checkout/${result.orderId}`);
+      return;
+    }
+
+    toast.error(result.message);
+    setPlacing(false);
   };
 
   return (
@@ -350,13 +401,29 @@ const CartPage = () => {
                 )}
               </div>
 
+              <div className="mt-5">
+                <PaymentMethodPicker
+                  methods={methods}
+                  value={methodId}
+                  onChange={setMethodId}
+                />
+              </div>
+
               <Button
                 type="button"
                 size="lg"
+                disabled={placing || methods.length === 0}
                 onClick={handleCheckout}
                 className="mt-4 w-full"
               >
-                Checkout
+                {placing ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Creating order…
+                  </>
+                ) : (
+                  "Checkout"
+                )}
               </Button>
 
               <ul className="mt-5 space-y-2 border-t pt-5">

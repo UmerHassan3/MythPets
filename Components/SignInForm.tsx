@@ -65,7 +65,15 @@ const SignInForm = () => {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel htmlFor="password">Password</FieldLabel>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <Input
             id="password"
             type="password"

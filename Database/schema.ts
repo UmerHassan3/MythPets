@@ -8,7 +8,10 @@ export const users = pgTable("users", {
 
   email: text("email").notNull().unique(),
 
-  password: text("password").notNull(),
+  // Nullable: an account created through Google has no password. A null here
+  // means "this account cannot be signed into with a password", which the
+  // credentials provider enforces rather than treating as an empty string.
+  password: text("password"),
 
   role: text("role").notNull().default("user")
 });
@@ -180,6 +183,7 @@ export const cartItems = pgTable(
   ],
 );
 
+
 /* =========================================================
    ORDERS
    The Roblox username is captured at checkout — it is how the
@@ -187,8 +191,13 @@ export const cartItems = pgTable(
 ========================================================= */
 
 export const ORDER_STATUSES = [
+  // Created, customer has not sent funds yet.
   "pending",
+  // Transaction submitted but on-chain verification has not passed yet.
+  "processing",
+  // Verified on-chain.
   "paid",
+  // Pets handed over in-game.
   "delivered",
   "cancelled",
 ] as const;
@@ -215,6 +224,45 @@ export const orders = pgTable(
     // Money is numeric, never float — exact decimal arithmetic.
     total: numeric("total", { precision: 10, scale: 2 }).notNull(),
 
+    // Which wallet the customer was told to pay. Nullable FK so deleting a
+    // method never deletes orders; the snapshots below keep the record intact.
+    paymentMethodId: uuid("payment_method_id").references(
+      () => paymentMethods.id,
+      { onDelete: "set null" },
+    ),
+    paymentMethodCode: text("payment_method_code"),
+    paymentMethodName: text("payment_method_name"),
+    paymentNetwork: text("payment_network"),
+    paymentAddress: text("payment_address"),
+
+    // The exact amount to send, in the payment asset, locked when the order is
+    // created. Quoted once so a moving market cannot invalidate a payment the
+    // customer already made.
+    paymentAmount: numeric("payment_amount", { precision: 20, scale: 8 }),
+    paymentAsset: text("payment_asset"),
+
+    // A locked rate is a promise about a price, so it expires. Without this an
+    // order quoted today stays payable at today's rate indefinitely.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+
+    // Caps how many transaction hashes can be thrown at one order, so a
+    // guessing attempt cannot run indefinitely or burn the explorer quota.
+    verificationAttempts: integer("verification_attempts").default(0).notNull(),
+
+    // Stock is held from the moment an order is created. This makes putting it
+    // back idempotent: a sweep and an admin cancel must not both return it.
+    stockReleased: boolean("stock_released").default(false).notNull(),
+
+    // The on-chain reference. Unique so one transaction cannot be claimed
+    // against several orders.
+    txHash: text("tx_hash"),
+
+    // What the chain actually reported, kept for auditing a disputed order.
+    verifiedAmount: numeric("verified_amount", { precision: 20, scale: 8 }),
+    verificationNote: text("verification_note"),
+
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+
     note: text("note"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -229,9 +277,14 @@ export const orders = pgTable(
     index("orders_user_id_idx").on(table.userId),
     // The admin list filters by status and sorts newest-first.
     index("orders_status_created_at_idx").on(table.status, table.createdAt),
+    index("orders_payment_method_id_idx").on(table.paymentMethodId),
+    // Drives the sweep that expires abandoned orders and returns their stock.
+    index("orders_expiry_idx").on(table.status, table.expiresAt),
+    // Replay protection: the same transaction cannot pay for two orders.
+    unique("orders_tx_hash_unique").on(table.txHash),
     check(
       "orders_status_valid",
-      sql`${table.status} in ('pending', 'paid', 'delivered', 'cancelled')`,
+      sql`${table.status} in ('pending', 'processing', 'paid', 'delivered', 'cancelled')`,
     ),
   ],
 );
@@ -270,5 +323,88 @@ export const orderItems = pgTable(
     index("order_items_order_id_idx").on(table.orderId),
     index("order_items_product_id_idx").on(table.productId),
     check("order_items_quantity_positive", sql`${table.quantity} > 0`),
+  ],
+);
+
+/* =========================================================
+   PAYMENT METHODS
+   Admin-managed wallets. Stored rather than hardcoded so an
+   address can be rotated without a deploy.
+========================================================= */
+
+export const paymentMethods = pgTable(
+  "payment_methods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    // Drives which chain verifier runs, so it must match a known verifier.
+    code: text("code").notNull().unique(),
+
+    name: text("name").notNull(),
+
+    network: text("network").notNull(),
+
+    address: text("address").notNull(),
+
+    note: text("note"),
+
+    isActive: boolean("is_active").default(true).notNull(),
+
+    sortOrder: integer("sort_order").default(0).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("payment_methods_active_sort_idx").on(table.isActive, table.sortOrder),
+  ],
+);
+
+/* =========================================================
+   PASSWORD RESET TOKENS
+   Short-lived, single-use proof that somebody controls the
+   mailbox on an account.
+========================================================= */
+
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    /**
+     * SHA-256 of the token, never the token itself.
+     *
+     * The raw value exists only in the email we send. Storing it here would
+     * mean a database leak handed over a working reset link for every account
+     * with one outstanding — the same reason passwords are not stored either.
+     *
+     * SHA-256 rather than bcrypt because the input is 256 bits of CSPRNG
+     * output: there is nothing to brute-force, so a slow KDF buys nothing.
+     */
+    tokenHash: text("token_hash").notNull().unique(),
+
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+    /** Set the moment it is redeemed, so a link cannot be replayed. */
+    usedAt: timestamp("used_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Requesting a new link invalidates the previous ones for that account.
+    index("password_reset_tokens_user_id_idx").on(table.userId),
+    // Drives the sweep that clears expired rows.
+    index("password_reset_tokens_expires_at_idx").on(table.expiresAt),
   ],
 );

@@ -135,3 +135,25 @@ export const CheckoutSchema = z.object({
       "Enter a valid Roblox username (letters, digits, one underscore)",
     ),
 });
+
+export const ForgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .regex(EMAIL_PATTERN, "Please enter a valid email address"),
+});
+
+export const ResetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, { message: "Password must be at least 8 characters long" }),
+    confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
+  })
+  // Confirmed here rather than trusted: a typo in a password nobody can see is
+  // otherwise only discovered at the next sign-in, with no way back.
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });

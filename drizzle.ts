@@ -4,20 +4,43 @@ import { Pool } from 'pg';
 // Reuse the pool across dev HMR reloads so we don't leak connections.
 const globalForDb = globalThis as unknown as { pool?: Pool };
 
+/**
+ * Serverless and a long-running dev server want opposite pool settings.
+ *
+ * On Vercel every concurrent lambda instance holds its own pool, so a large
+ * `max` plus a long idle timeout multiplies across instances. Locally there is
+ * exactly one process, and a TLS handshake is expensive, so keeping
+ * connections warm is the win.
+ *
+ * DATABASE_URL must point at Supabase's *transaction* pooler (port 6543). The
+ * session pooler on 5432 dedicates a backend to each client for the life of
+ * the connection and caps out at 15 — which a dev server, a build's workers
+ * and a stray script will exhaust between them, and every query then fails
+ * with EMAXCONNSESSION.
+ */
+const isServerless = process.env.NODE_ENV === "production";
+
 export const pool =
   globalForDb.pool ??
   new Pool({
     connectionString: process.env.DATABASE_URL!,
     // Fail fast instead of hanging a request forever when the link stalls.
     connectionTimeoutMillis: 15_000,
-    // Opening a connection costs a TLS handshake, which is by far the most
-    // expensive thing we do — keep idle connections around for a long time so
-    // page loads reuse a warm one instead of paying it again. `keepAlive`
-    // detects sockets the server dropped, and `withRetry` covers a stale one
-    // slipping through.
-    idleTimeoutMillis: 5 * 60_000,
     keepAlive: true,
-    max: 5,
+
+    // Enough for the parallel queries inside a single request (pages use
+    // Promise.all), but small enough that concurrent instances do not add up
+    // to the pooler's ceiling.
+    max: isServerless ? 3 : 5,
+
+    // Release quickly in serverless: the instance is frozen between requests
+    // and would otherwise sit holding connections nobody can use. Locally,
+    // hold them so page loads reuse a warm socket.
+    idleTimeoutMillis: isServerless ? 10_000 : 5 * 60_000,
+
+    // Lets the pool drain so a finished lambda does not keep the event loop
+    // (and its connections) alive.
+    allowExitOnIdle: isServerless,
   });
 
 // A pool emits 'error' for idle clients dropped by the server. Without a
@@ -53,6 +76,12 @@ const isRetryable = (error: unknown) => {
     const { code, message } = current as { code?: string; message?: string };
 
     if (code && RETRYABLE.has(code)) return true;
+
+    // Supabase's pooler rejects with a generic XX000 and the detail only in the
+    // message. This is transient — a moment later a slot frees up — so it is
+    // worth one backed-off retry rather than failing the page render.
+    if (message && /EMAXCONN|max clients reached/i.test(message)) return true;
+
     if (message && /timeout|terminated|ECONNRESET|socket|connection/i.test(message)) {
       return true;
     }

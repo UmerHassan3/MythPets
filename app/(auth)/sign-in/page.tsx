@@ -1,12 +1,23 @@
-import { auth } from '@/auth'
+import { auth, googleEnabled } from '@/auth'
 import SignInForm from '@/Components/SignInForm'
+import GoogleSignInButton from '@/Components/GoogleSignInButton'
+import AuthDivider from '@/Components/AuthDivider'
 import { redirect } from 'next/navigation'
 
-const page = async () => {
+/** Only same-origin paths are honoured — an absolute URL here is an open redirect. */
+const safeCallback = (value: string | string[] | undefined) => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+}
+
+const page = async ({ searchParams }: PageProps<"/sign-in">) => {
   const session = await auth();
   if (session?.user?.id) {
     redirect("/")
   }
+
+  const params = await searchParams;
+  const callbackUrl = safeCallback(params.callbackUrl);
 
   return (
     <>
@@ -18,6 +29,15 @@ const page = async () => {
           Sign in to track your orders, stock alerts and trade history.
         </p>
       </div>
+
+      {/* Offered first: for anyone who signed up with Google it is the only
+          route in, and it saves everyone else a password. */}
+      {googleEnabled ? (
+        <div className="mb-6 space-y-6">
+          <GoogleSignInButton callbackUrl={callbackUrl} />
+          <AuthDivider>or sign in with email</AuthDivider>
+        </div>
+      ) : null}
 
       <SignInForm />
     </>

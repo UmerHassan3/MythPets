@@ -80,6 +80,14 @@ const GamesManager = ({ games }: { games: GameRow[] }) => {
 
   const busy = isPending || isSubmitting;
 
+  /**
+   * Temporarily hidden at the client's request.
+   *
+   * Flip to `true` to bring the button back — the dialog, its form and the
+   * `createGame` action are all left intact, so nothing else needs changing.
+   */
+  const SHOW_ADD_GAME = false;
+
   const addGameButton = (
     <DialogTrigger render={<Button />}>
       <Plus className="size-4" />
@@ -94,15 +102,21 @@ const GamesManager = ({ games }: { games: GameRow[] }) => {
         description={
           games.length === 1 ? "1 game" : `${games.length} games in the catalogue`
         }
-        actions={addGameButton}
+        actions={SHOW_ADD_GAME ? addGameButton : undefined}
       />
 
       {games.length === 0 ? (
         <EmptyState
           icon={Gamepad2}
           title="No games yet"
-          description="Games sit at the top of your catalogue. Add one, then give it categories and products."
-          action={addGameButton}
+          description={
+            SHOW_ADD_GAME
+              ? "Games sit at the top of your catalogue. Add one, then give it categories and products."
+              : // Without the button, telling somebody to "add one" points at
+                // a control that is not on screen.
+                "Games sit at the top of your catalogue. None have been added yet."
+          }
+          action={SHOW_ADD_GAME ? addGameButton : undefined}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border">

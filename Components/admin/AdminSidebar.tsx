@@ -4,11 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BoxIcon,
   Gamepad2,
   LayoutDashboard,
   LogOut,
   PenIcon,
+  Receipt,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -18,8 +18,8 @@ import { Button } from "@/Components/ui/button";
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/games", label: "Games", icon: Gamepad2 },
+  { href: "/admin/orders", label: "Orders", icon: Receipt },
    { href: "/admin/manage-reviews", label: "Manage Reviews", icon: PenIcon },
-   { href: "/admin/orders", label: "Orders", icon: BoxIcon },
 ] as const;
 
 type AdminSidebarProps = {

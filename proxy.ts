@@ -6,7 +6,7 @@ import { auth } from "@/auth";
  * Routes that require a signed-in account. Listed as prefixes so nested paths
  * (e.g. /orders/abc123) are covered without extra entries.
  */
-const PROTECTED_PREFIXES = ["/cart", "/profile", "/orders"];
+const PROTECTED_PREFIXES = ["/cart", "/checkout", "/profile", "/orders"];
 
 /**
  * Guards customer routes in one place rather than repeating a session check at
